@@ -1,0 +1,262 @@
+{
+  "_comment": [
+    "Artifact types the adapter recognises. The list is ordered: a file takes the first type whose rules match, so specific types come before general ones.",
+    "A type matches when any one of its rules matches. A rule matches when every condition it lists holds:",
+    "  names: the file name matches one of these globs (case-insensitive).",
+    "  magic: the file starts with one of these byte signatures at the given offset.",
+    "  hive:  the file is a registry hive whose embedded name or file name matches one of these globs.",
+    "sidecars: suffixes that, appended to the file name, name companion files staged together with it."
+  ],
+  "artifacts": [
+    {
+      "id": "registry_log",
+      "label": "Registry transaction log",
+      "category": "Registry",
+      "about": "Changes Windows wrote to a hive's log before flushing them into the hive. The adapter stages these next to their hive automatically so parsers can replay them.",
+      "rules": [
+        {"names": ["*.LOG1", "*.LOG2"]},
+        {"names": ["*.LOG"], "magic": [{"offset": 0, "hex": "72656766"}]}
+      ]
+    },
+    {
+      "id": "hive_amcache",
+      "label": "Registry: Amcache.hve",
+      "category": "Program execution",
+      "about": "Inventory of programs and executables Windows has seen, with SHA-1 hashes, paths and first-seen times.",
+      "sidecars": [".LOG1", ".LOG2"],
+      "rules": [{"magic": [{"offset": 0, "hex": "72656766"}], "hive": ["Amcache.hve"]}]
+    },
+    {
+      "id": "hive_system",
+      "label": "Registry: SYSTEM",
+      "category": "Registry",
+      "about": "Machine configuration: services, devices, USB history, time zone, network interfaces and the ShimCache (AppCompatCache) execution list.",
+      "sidecars": [".LOG", ".LOG1", ".LOG2"],
+      "rules": [{"magic": [{"offset": 0, "hex": "72656766"}], "hive": ["SYSTEM"]}]
+    },
+    {
+      "id": "hive_software",
+      "label": "Registry: SOFTWARE",
+      "category": "Registry",
+      "about": "Installed software, OS version, autostart locations and network profiles. Also used to resolve application names in SRUM.",
+      "sidecars": [".LOG", ".LOG1", ".LOG2"],
+      "rules": [{"magic": [{"offset": 0, "hex": "72656766"}], "hive": ["SOFTWARE"]}]
+    },
+    {
+      "id": "hive_sam",
+      "label": "Registry: SAM",
+      "category": "Registry",
+      "about": "Local user accounts, group membership, last logon times and logon counts.",
+      "sidecars": [".LOG", ".LOG1", ".LOG2"],
+      "rules": [{"magic": [{"offset": 0, "hex": "72656766"}], "hive": ["SAM"]}]
+    },
+    {
+      "id": "hive_security",
+      "label": "Registry: SECURITY",
+      "category": "Registry",
+      "about": "Local security policy, audit policy and cached domain logon data.",
+      "sidecars": [".LOG", ".LOG1", ".LOG2"],
+      "rules": [{"magic": [{"offset": 0, "hex": "72656766"}], "hive": ["SECURITY"]}]
+    },
+    {
+      "id": "hive_ntuser",
+      "label": "Registry: NTUSER.DAT",
+      "category": "Registry",
+      "about": "One user's settings and activity: recent documents, typed paths, UserAssist run counts, mounted devices and more.",
+      "sidecars": [".LOG", ".LOG1", ".LOG2"],
+      "rules": [{"magic": [{"offset": 0, "hex": "72656766"}], "hive": ["NTUSER.DAT"]}]
+    },
+    {
+      "id": "hive_usrclass",
+      "label": "Registry: UsrClass.dat",
+      "category": "Registry",
+      "about": "One user's class registrations. Holds the ShellBags that record which folders the user opened, including on removed drives.",
+      "sidecars": [".LOG", ".LOG1", ".LOG2"],
+      "rules": [{"magic": [{"offset": 0, "hex": "72656766"}], "hive": ["UsrClass.dat"]}]
+    },
+    {
+      "id": "hive_other",
+      "label": "Registry: other hive",
+      "category": "Registry",
+      "about": "Any other registry hive, such as DEFAULT, BCD, COMPONENTS or settings.dat.",
+      "sidecars": [".LOG", ".LOG1", ".LOG2"],
+      "rules": [{"magic": [{"offset": 0, "hex": "72656766"}]}]
+    },
+    {
+      "id": "mft",
+      "label": "NTFS $MFT",
+      "category": "File system",
+      "about": "The NTFS Master File Table: one record per file and folder on the volume, with names, sizes and timestamps, including many deleted entries.",
+      "rules": [
+        {"names": ["$MFT", "$MFTMirr"]},
+        {"magic": [{"offset": 0, "hex": "46494C4530"}]}
+      ]
+    },
+    {
+      "id": "usn_journal",
+      "label": "NTFS $J (USN journal)",
+      "category": "File system",
+      "about": "The NTFS change journal: a log of file creations, renames, writes and deletions. A $MFT from the same volume resolves the parent folder paths.",
+      "rules": [{"names": ["$J", "$UsnJrnl*J"]}]
+    },
+    {
+      "id": "ntfs_boot",
+      "label": "NTFS $Boot",
+      "category": "File system",
+      "about": "The NTFS boot sector: volume serial number, cluster size and the location of the $MFT.",
+      "rules": [{"names": ["$Boot"]}]
+    },
+    {
+      "id": "ntfs_sds",
+      "label": "NTFS $SDS",
+      "category": "File system",
+      "about": "The NTFS security descriptor stream: owners and access control lists referenced by $MFT records.",
+      "rules": [{"names": ["$SDS", "$Secure*SDS"]}]
+    },
+    {
+      "id": "ntfs_i30",
+      "label": "NTFS $I30 index",
+      "category": "File system",
+      "about": "A directory index. Its slack space can still list files that were deleted from the folder.",
+      "rules": [
+        {"names": ["$I30"]},
+        {"magic": [{"offset": 0, "hex": "494E4458"}]}
+      ]
+    },
+    {
+      "id": "prefetch",
+      "label": "Prefetch",
+      "category": "Program execution",
+      "about": "Written when a program starts. Records the run count, up to eight last run times and the files the program loaded.",
+      "rules": [
+        {"names": ["*.pf"], "magic": [{"offset": 0, "hex": "4D414D04"}, {"offset": 4, "hex": "53434341"}]},
+        {"magic": [{"offset": 4, "hex": "53434341"}]}
+      ]
+    },
+    {
+      "id": "lnk",
+      "label": "Shortcut (LNK)",
+      "category": "File and folder access",
+      "about": "Shortcut files, many created automatically when a user opens a document. They keep the target path, its timestamps and the volume it lived on.",
+      "rules": [{"magic": [{"offset": 0, "hex": "4C0000000114020000000000C000000000000046"}]}]
+    },
+    {
+      "id": "jumplist",
+      "label": "Jump list",
+      "category": "File and folder access",
+      "about": "Per-application lists of recently and frequently opened files, shown in the taskbar. Each entry embeds a shortcut with timestamps.",
+      "rules": [{"names": ["*.automaticDestinations-ms", "*.customDestinations-ms"]}]
+    },
+    {
+      "id": "evtx",
+      "label": "Windows event log",
+      "category": "Event logs",
+      "about": "Windows event logs: logons, process creation, service installs, PowerShell, RDP and many other system and security events.",
+      "rules": [{"magic": [{"offset": 0, "hex": "456C6646696C6500"}]}]
+    },
+    {
+      "id": "srum",
+      "label": "SRUM database",
+      "category": "System activity",
+      "about": "System Resource Usage Monitor: per-application network traffic, CPU time and energy use, kept for about 30 days. A SOFTWARE hive resolves application and user names.",
+      "rules": [{"names": ["SRUDB.dat"]}]
+    },
+    {
+      "id": "sum_ual",
+      "label": "User Access Logging",
+      "category": "System activity",
+      "about": "Windows Server User Access Logging databases: which clients and users connected to server roles, and when.",
+      "rules": [{"names": ["Current.mdb", "SystemIdentity.mdb", "{*}.mdb"], "magic": [{"offset": 4, "hex": "EFCDAB89"}]}]
+    },
+    {
+      "id": "windows_search",
+      "label": "Windows Search index",
+      "category": "File and folder access",
+      "about": "The Windows Search database. Lists indexed files with metadata, internet history and activity history, even for files that are gone.",
+      "rules": [{"names": ["Windows.edb", "Windows.db"]}]
+    },
+    {
+      "id": "activities_cache",
+      "label": "Windows Timeline",
+      "category": "System activity",
+      "about": "ActivitiesCache.db: the Windows Timeline of applications used and documents opened, with focus durations.",
+      "rules": [{"names": ["ActivitiesCache.db"]}]
+    },
+    {
+      "id": "recycle_bin",
+      "label": "Recycle Bin record",
+      "category": "Deleted files",
+      "about": "Recycle Bin metadata ($I files, or INFO2 on Windows XP): the original path, size and deletion time of each deleted file.",
+      "rules": [
+        {"names": ["$I*"], "magic": [{"offset": 0, "hex": "0100000000000000"}, {"offset": 0, "hex": "0200000000000000"}]},
+        {"names": ["INFO2"]}
+      ]
+    },
+    {
+      "id": "recentfilecache",
+      "label": "RecentFileCache.bcf",
+      "category": "Program execution",
+      "about": "Windows 7 list of recently executed programs, the predecessor of Amcache.",
+      "rules": [
+        {"names": ["RecentFileCache.bcf"]},
+        {"magic": [{"offset": 0, "hex": "FEFFEEFF"}]}
+      ]
+    },
+    {
+      "id": "sqlite",
+      "label": "SQLite database",
+      "category": "Databases",
+      "about": "SQLite databases, such as browser history, cookies, downloads and many application stores.",
+      "rules": [{"magic": [{"offset": 0, "hex": "53514C69746520666F726D6174203300"}]}]
+    },
+    {
+      "id": "memory_image",
+      "label": "Memory image",
+      "category": "Memory",
+      "about": "A capture of physical memory: running processes, network connections, command lines and injected code at the time of capture.",
+      "rules": [
+        {"magic": [{"offset": 0, "hex": "5041474544553634"}, {"offset": 0, "hex": "5041474544554D50"}, {"offset": 0, "hex": "454D694C"}]},
+        {"names": ["*.raw", "*.mem", "*.vmem", "*.lime"]}
+      ]
+    },
+    {
+      "id": "pe",
+      "label": "Executable (PE)",
+      "category": "Executables",
+      "about": "Windows programs and libraries (EXE, DLL, SYS). Triage covers signatures, hashes, compiler and packer, and embedded strings.",
+      "rules": [{"magic": [{"offset": 0, "hex": "4D5A"}]}]
+    },
+    {
+      "id": "document",
+      "label": "Document",
+      "category": "Documents and media",
+      "about": "PDF, Office and RTF documents. Their metadata can name the author, the software used and creation and edit times.",
+      "rules": [
+        {"magic": [{"offset": 0, "hex": "25504446"}, {"offset": 0, "hex": "7B5C727466"}]},
+        {"names": ["*.docx", "*.docm", "*.xlsx", "*.xlsm", "*.pptx", "*.pptm", "*.odt", "*.ods", "*.odp"], "magic": [{"offset": 0, "hex": "504B0304"}]},
+        {"names": ["*.doc", "*.xls", "*.ppt", "*.msg", "*.pub", "*.vsd"], "magic": [{"offset": 0, "hex": "D0CF11E0A1B11AE1"}]}
+      ]
+    },
+    {
+      "id": "image_media",
+      "label": "Image or media",
+      "category": "Documents and media",
+      "about": "Photos, audio and video. Their metadata can hold the capture time, camera model and GPS position.",
+      "rules": [
+        {"magic": [
+          {"offset": 0, "hex": "FFD8FF"},
+          {"offset": 0, "hex": "89504E470D0A1A0A"},
+          {"offset": 0, "hex": "47494638"},
+          {"offset": 0, "hex": "49492A00"},
+          {"offset": 0, "hex": "4D4D002A"},
+          {"offset": 4, "hex": "66747970"},
+          {"offset": 8, "hex": "57454250"},
+          {"offset": 8, "hex": "41564920"},
+          {"offset": 8, "hex": "57415645"},
+          {"offset": 0, "hex": "494433"}
+        ]},
+        {"names": ["*.bmp"], "magic": [{"offset": 0, "hex": "424D"}]}
+      ]
+    }
+  ]
+}

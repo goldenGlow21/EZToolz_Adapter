@@ -1,0 +1,667 @@
+{
+  "_comment": [
+    "Tools the adapter can download, and the actions each one performs on evidence.",
+    "source.kind: 'url' downloads a fixed URL; 'github' takes the newest release asset whose name matches 'asset';",
+    "  'versioned' reads a version string from 'version_url' and fills it into 'url', 'file' and 'sha256_url'.",
+    "exe / gui: file name globs located anywhere inside the installed tool folder.",
+    "views: what the gui opens when given a file path: extensions such as '.csv', or artifact ids such as 'hive_system'.",
+    "action.input: 'folder' runs once over a folder holding every selected file; 'file' runs once per file.",
+    "Step arguments may use {input} (the staged file or folder), {output} (the job's result folder),",
+    "  {exe_dir} (folder of the tool's exe), {pair} (staged companion file) and, for 'file' actions, {name} (the input file name).",
+    "step.stdout saves the tool's standard output to that file in the result folder.",
+    "step.stdout_on_failure 'log' moves that output into the job log when the command fails, for tools that print errors there.",
+    "step.rename_output gives the single file a command writes a new name, for tools whose own naming misleads.",
+    "step.stdin feeds {input} or {pair} as standard input, for tools such as bstrings that refuse -f when stdin is not a console.",
+    "Every step runs with TEMP and TMP inside the job's working folder, so temporary copies are deleted with it.",
+    "action.pair names a companion artifact staged with the input; its args are appended when one is found.",
+    "action.dirty_hive_args are appended when a staged hive is dirty and its transaction logs are missing."
+  ],
+  "requirements": [
+    {
+      "id": "dotnet9",
+      "label": ".NET 9 Runtime",
+      "framework": "Microsoft.NETCore.App",
+      "major": 9,
+      "download": "https://dotnet.microsoft.com/download/dotnet/9.0"
+    },
+    {
+      "id": "dotnet9-desktop",
+      "label": ".NET 9 Desktop Runtime",
+      "framework": "Microsoft.WindowsDesktop.App",
+      "major": 9,
+      "download": "https://dotnet.microsoft.com/download/dotnet/9.0"
+    }
+  ],
+  "tools": [
+    {
+      "id": "MFTECmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses NTFS metadata files: $MFT, $J, $Boot, $SDS and $I30.",
+      "homepage": "https://github.com/EricZimmerman/MFTECmd",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/MFTECmd.zip"},
+      "exe": "MFTECmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "mftecmd-ntfs",
+          "label": "Parse NTFS metadata ($MFT, $Boot, $SDS, $I30)",
+          "artifacts": ["mft", "ntfs_boot", "ntfs_sds", "ntfs_i30"],
+          "input": "file",
+          "steps": [{"args": ["-f", "{input}", "--csv", "{output}"]}]
+        },
+        {
+          "id": "mftecmd-usn",
+          "label": "Parse USN journal ($J)",
+          "artifacts": ["usn_journal"],
+          "input": "file",
+          "pair": {"artifact": "mft", "required": false, "args": ["-m", "{pair}"]},
+          "steps": [{"args": ["-f", "{input}", "--csv", "{output}"]}]
+        }
+      ]
+    },
+    {
+      "id": "PECmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses prefetch files into run counts, run times and loaded files, plus a timeline.",
+      "homepage": "https://github.com/EricZimmerman/PECmd",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/PECmd.zip"},
+      "exe": "PECmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "pecmd",
+          "label": "Parse prefetch",
+          "artifacts": ["prefetch"],
+          "input": "folder",
+          "steps": [{"args": ["-d", "{input}", "--csv", "{output}", "-q"]}]
+        }
+      ]
+    },
+    {
+      "id": "LECmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses shortcut (LNK) files: target paths, target timestamps, volume and machine details.",
+      "homepage": "https://github.com/EricZimmerman/LECmd",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/LECmd.zip"},
+      "exe": "LECmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "lecmd",
+          "label": "Parse shortcuts",
+          "artifacts": ["lnk"],
+          "input": "folder",
+          "steps": [{"args": ["-d", "{input}", "--all", "--csv", "{output}", "-q"]}]
+        }
+      ]
+    },
+    {
+      "id": "JLECmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses jump lists into the files each application opened, with timestamps.",
+      "homepage": "https://github.com/EricZimmerman/JLECmd",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/JLECmd.zip"},
+      "exe": "JLECmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "jlecmd",
+          "label": "Parse jump lists",
+          "artifacts": ["jumplist"],
+          "input": "folder",
+          "steps": [{"args": ["-d", "{input}", "--csv", "{output}", "-q"]}]
+        }
+      ]
+    },
+    {
+      "id": "EvtxECmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Converts event logs into one normalised CSV, using maps that extract the useful fields of common events.",
+      "homepage": "https://github.com/EricZimmerman/evtx",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/EvtxECmd.zip"},
+      "exe": "EvtxECmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "evtxecmd",
+          "label": "Parse event logs",
+          "artifacts": ["evtx"],
+          "input": "folder",
+          "steps": [{"args": ["-d", "{input}", "--csv", "{output}"]}]
+        }
+      ]
+    },
+    {
+      "id": "RECmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Extracts forensically relevant registry keys from hives using the Kroll batch file.",
+      "homepage": "https://github.com/EricZimmerman/RECmd",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/RECmd.zip"},
+      "exe": "RECmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "recmd-batch",
+          "label": "Extract registry artifacts (Kroll batch)",
+          "artifacts": ["hive_amcache", "hive_system", "hive_software", "hive_sam", "hive_security", "hive_ntuser", "hive_usrclass", "hive_other"],
+          "input": "folder",
+          "dirty_hive_args": ["--nl"],
+          "steps": [{"args": ["-d", "{input}", "--bn", "{exe_dir}/BatchExamples/Kroll_Batch.reb", "--csv", "{output}"]}]
+        }
+      ]
+    },
+    {
+      "id": "AmcacheParser",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses Amcache.hve into program, file and driver inventories with SHA-1 hashes.",
+      "homepage": "https://github.com/EricZimmerman/AmcacheParser",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/AmcacheParser.zip"},
+      "exe": "AmcacheParser.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "amcacheparser",
+          "label": "Parse Amcache",
+          "artifacts": ["hive_amcache"],
+          "input": "file",
+          "dirty_hive_args": ["--nl"],
+          "steps": [{"args": ["-f", "{input}", "-i", "--csv", "{output}"]}]
+        }
+      ]
+    },
+    {
+      "id": "AppCompatCacheParser",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses the ShimCache (AppCompatCache) from a SYSTEM hive: executables Windows has seen, with modification times.",
+      "homepage": "https://github.com/EricZimmerman/AppCompatCacheParser",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/AppCompatCacheParser.zip"},
+      "exe": "AppCompatCacheParser.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "appcompatcacheparser",
+          "label": "Parse ShimCache",
+          "artifacts": ["hive_system"],
+          "input": "file",
+          "dirty_hive_args": ["--nl"],
+          "steps": [{"args": ["-f", "{input}", "--csv", "{output}"]}]
+        }
+      ]
+    },
+    {
+      "id": "SBECmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses ShellBags from NTUSER.DAT and UsrClass.dat: folders a user browsed, with timestamps.",
+      "homepage": "https://github.com/EricZimmerman/ShellBags",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/SBECmd.zip"},
+      "exe": "SBECmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "sbecmd",
+          "label": "Parse ShellBags",
+          "artifacts": ["hive_ntuser", "hive_usrclass"],
+          "input": "folder",
+          "dirty_hive_args": ["--nl"],
+          "steps": [{"args": ["-d", "{input}", "--csv", "{output}"]}]
+        }
+      ]
+    },
+    {
+      "id": "SrumECmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses the SRUM database into per-application network, CPU and energy usage tables.",
+      "homepage": "https://github.com/EricZimmerman/Srum",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/SrumECmd.zip"},
+      "exe": "SrumECmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "srumecmd",
+          "label": "Parse SRUM",
+          "artifacts": ["srum"],
+          "input": "file",
+          "pair": {"artifact": "hive_software", "required": false, "args": ["-r", "{pair}"]},
+          "steps": [{"args": ["-f", "{input}", "--csv", "{output}"]}]
+        }
+      ]
+    },
+    {
+      "id": "RBCmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses Recycle Bin $I and INFO2 records.",
+      "homepage": "https://github.com/EricZimmerman/RBCmd",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/RBCmd.zip"},
+      "exe": "RBCmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "rbcmd",
+          "label": "Parse Recycle Bin records",
+          "artifacts": ["recycle_bin"],
+          "input": "folder",
+          "steps": [{"args": ["-d", "{input}", "--csv", "{output}", "-q"]}]
+        }
+      ]
+    },
+    {
+      "id": "RecentFileCacheParser",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses RecentFileCache.bcf from Windows 7.",
+      "homepage": "https://github.com/EricZimmerman/RecentFileCacheParser",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/RecentFileCacheParser.zip"},
+      "exe": "RecentFileCacheParser.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "recentfilecacheparser",
+          "label": "Parse RecentFileCache",
+          "artifacts": ["recentfilecache"],
+          "input": "file",
+          "steps": [{"args": ["-f", "{input}", "--csv", "{output}", "-q"]}]
+        }
+      ]
+    },
+    {
+      "id": "WxTCmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses the Windows Timeline database (ActivitiesCache.db).",
+      "homepage": "https://github.com/EricZimmerman/WxTCmd",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/WxTCmd.zip"},
+      "exe": "WxTCmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "wxtcmd",
+          "label": "Parse Windows Timeline",
+          "artifacts": ["activities_cache"],
+          "input": "file",
+          "steps": [{"args": ["-f", "{input}", "--csv", "{output}"]}]
+        }
+      ]
+    },
+    {
+      "id": "SQLECmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Runs mapped queries against known SQLite databases: browsers, cloud sync clients, messaging apps and more.",
+      "homepage": "https://github.com/EricZimmerman/SQLECmd",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/SQLECmd.zip"},
+      "exe": "SQLECmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "sqlecmd",
+          "label": "Query known SQLite databases",
+          "artifacts": ["sqlite"],
+          "input": "folder",
+          "steps": [{"args": ["-d", "{input}", "--hunt", "--csv", "{output}"]}]
+        }
+      ]
+    },
+    {
+      "id": "SumECmd",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Parses Windows Server User Access Logging databases.",
+      "homepage": "https://github.com/EricZimmerman/Sum",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/SumECmd.zip"},
+      "exe": "SumECmd.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "sumecmd",
+          "label": "Parse User Access Logging",
+          "artifacts": ["sum_ual"],
+          "input": "folder",
+          "steps": [{"args": ["-d", "{input}", "--csv", "{output}"]}]
+        }
+      ]
+    },
+    {
+      "id": "rla",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Registry Log Applier: replays transaction logs into copies of dirty hives, producing clean hives for tools that cannot replay logs themselves.",
+      "homepage": "https://ericzimmerman.github.io/",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/rla.zip"},
+      "exe": "rla.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "rla",
+          "label": "Replay transaction logs into clean hive copies",
+          "artifacts": ["hive_amcache", "hive_system", "hive_software", "hive_sam", "hive_security", "hive_ntuser", "hive_usrclass", "hive_other"],
+          "input": "file",
+          "steps": [{"args": ["-f", "{input}", "--out", "{output}", "--ca", "--nop"], "rename_output": "{name}"}]
+        }
+      ]
+    },
+    {
+      "id": "bstrings",
+      "group": "Eric Zimmerman's Tools",
+      "about": "Extracts ASCII and Unicode strings from any file.",
+      "homepage": "https://github.com/EricZimmerman/bstrings",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/bstrings.zip"},
+      "exe": "bstrings.exe",
+      "requires": "dotnet9",
+      "actions": [
+        {
+          "id": "bstrings",
+          "label": "Extract strings (bstrings)",
+          "artifacts": ["*"],
+          "input": "file",
+          "steps": [{"args": ["-o", "{output}/{name}.bstrings.txt", "-s"], "stdin": "{input}"}]
+        }
+      ]
+    },
+    {
+      "id": "TimelineExplorer",
+      "group": "Eric Zimmerman's Tools: viewers",
+      "about": "Spreadsheet viewer built for large forensic CSV files, with filtering, grouping and colour tagging. Results open in it by default.",
+      "homepage": "https://ericzimmerman.github.io/",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/TimelineExplorer.zip"},
+      "exe": "TimelineExplorer.exe",
+      "gui": "TimelineExplorer.exe",
+      "views": [".csv", ".tsv", ".xlsx"],
+      "requires": "dotnet9-desktop",
+      "recommended": true,
+      "actions": []
+    },
+    {
+      "id": "RegistryExplorer",
+      "group": "Eric Zimmerman's Tools: viewers",
+      "about": "Interactive registry hive viewer with bookmarks, plugins and deleted key recovery.",
+      "homepage": "https://ericzimmerman.github.io/",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/RegistryExplorer.zip"},
+      "exe": "RegistryExplorer.exe",
+      "gui": "RegistryExplorer.exe",
+      "views": ["hive_amcache", "hive_system", "hive_software", "hive_sam", "hive_security", "hive_ntuser", "hive_usrclass", "hive_other"],
+      "requires": "dotnet9-desktop",
+      "actions": []
+    },
+    {
+      "id": "ShellBagsExplorer",
+      "group": "Eric Zimmerman's Tools: viewers",
+      "about": "Interactive ShellBags viewer showing browsed folders as a tree.",
+      "homepage": "https://ericzimmerman.github.io/",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/ShellBagsExplorer.zip"},
+      "exe": "ShellBagsExplorer.exe",
+      "gui": "ShellBagsExplorer.exe",
+      "requires": "dotnet9-desktop",
+      "actions": []
+    },
+    {
+      "id": "MFTExplorer",
+      "group": "Eric Zimmerman's Tools: viewers",
+      "about": "Interactive $MFT viewer that rebuilds the folder tree, including deleted entries.",
+      "homepage": "https://ericzimmerman.github.io/",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/MFTExplorer.zip"},
+      "exe": "MFTExplorer.exe",
+      "gui": "MFTExplorer.exe",
+      "requires": "dotnet9-desktop",
+      "actions": []
+    },
+    {
+      "id": "JumpListExplorer",
+      "group": "Eric Zimmerman's Tools: viewers",
+      "about": "Interactive jump list viewer.",
+      "homepage": "https://ericzimmerman.github.io/",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/JumpListExplorer.zip"},
+      "exe": "JumpListExplorer.exe",
+      "gui": "JumpListExplorer.exe",
+      "requires": "dotnet9-desktop",
+      "actions": []
+    },
+    {
+      "id": "SDBExplorer",
+      "group": "Eric Zimmerman's Tools: viewers",
+      "about": "Viewer for application compatibility shim databases (.sdb), which attackers use for persistence.",
+      "homepage": "https://ericzimmerman.github.io/",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/SDBExplorer.zip"},
+      "exe": "SDBExplorer.exe",
+      "gui": "SDBExplorer.exe",
+      "requires": "dotnet9-desktop",
+      "actions": []
+    },
+    {
+      "id": "EZViewer",
+      "group": "Eric Zimmerman's Tools: viewers",
+      "about": "Standalone viewer for Office documents, PDFs and other common file types, without Office installed.",
+      "homepage": "https://ericzimmerman.github.io/",
+      "source": {"kind": "url", "url": "https://download.ericzimmermanstools.com/net9/EZViewer.zip"},
+      "exe": "EZViewer.exe",
+      "gui": "EZViewer.exe",
+      "views": ["document"],
+      "requires": "dotnet9-desktop",
+      "actions": []
+    },
+    {
+      "id": "Sigcheck",
+      "group": "Sysinternals",
+      "about": "Reports the digital signature, publisher, version information and hashes of executables.",
+      "homepage": "https://learn.microsoft.com/en-us/sysinternals/downloads/sigcheck",
+      "license": "https://learn.microsoft.com/en-us/sysinternals/license-terms",
+      "source": {"kind": "url", "url": "https://download.sysinternals.com/files/Sigcheck.zip"},
+      "exe": "sigcheck64.exe",
+      "actions": [
+        {
+          "id": "sigcheck",
+          "label": "Check signatures and hashes",
+          "artifacts": ["pe"],
+          "input": "folder",
+          "steps": [{"args": ["-accepteula", "-nobanner", "-c", "-h", "-a", "-e", "-s", "{input}"], "stdout": "sigcheck.csv", "stdout_encoding": "utf-16-le"}]
+        }
+      ]
+    },
+    {
+      "id": "Strings",
+      "group": "Sysinternals",
+      "about": "Extracts ASCII and Unicode strings from any file.",
+      "homepage": "https://learn.microsoft.com/en-us/sysinternals/downloads/strings",
+      "license": "https://learn.microsoft.com/en-us/sysinternals/license-terms",
+      "source": {"kind": "url", "url": "https://download.sysinternals.com/files/Strings.zip"},
+      "exe": "strings64.exe",
+      "actions": [
+        {
+          "id": "strings",
+          "label": "Extract strings (Sysinternals)",
+          "artifacts": ["*"],
+          "input": "file",
+          "steps": [{"args": ["-accepteula", "-nobanner", "-n", "6", "{input}"], "stdout": "{name}.strings.txt"}]
+        }
+      ]
+    },
+    {
+      "id": "Hayabusa",
+      "group": "Event log detection",
+      "about": "Fast event log threat hunter. Applies thousands of Sigma rules and writes a detection timeline.",
+      "homepage": "https://github.com/Yamato-Security/hayabusa",
+      "source": {"kind": "github", "repo": "Yamato-Security/hayabusa", "asset": "^hayabusa-[0-9.]+-win-x64\\.zip$"},
+      "exe": "hayabusa-*-win-x64.exe",
+      "actions": [
+        {
+          "id": "hayabusa-timeline",
+          "label": "Detection timeline (Sigma rules)",
+          "artifacts": ["evtx"],
+          "input": "folder",
+          "steps": [{"args": ["dfir-timeline", "-d", "{input}", "-o", "{output}/hayabusa_timeline.csv", "-H", "{output}/hayabusa_summary.html", "-w", "-C", "-U", "-q", "-K", "-Q"]}]
+        },
+        {
+          "id": "hayabusa-logons",
+          "label": "Logon summary",
+          "artifacts": ["evtx"],
+          "input": "folder",
+          "steps": [{"args": ["logon-summary", "-d", "{input}", "-o", "{output}/hayabusa_logons", "-C", "-q", "-K", "-Q"]}]
+        },
+        {
+          "id": "hayabusa-eid-metrics",
+          "label": "Event ID statistics",
+          "artifacts": ["evtx"],
+          "input": "folder",
+          "steps": [{"args": ["eid-metrics", "-d", "{input}", "-o", "{output}/hayabusa_eid_metrics.csv", "-C", "-q", "-K", "-Q"]}]
+        }
+      ]
+    },
+    {
+      "id": "Chainsaw",
+      "group": "Event log detection",
+      "about": "Event log hunter using Sigma and Chainsaw rules. Also detects gaps in logs and analyses SRUM.",
+      "homepage": "https://github.com/WithSecureOpenSource/chainsaw",
+      "source": {
+        "kind": "github",
+        "repo": "WithSecureOpenSource/chainsaw",
+        "asset": "^chainsaw_all_platforms\\+rules\\+examples\\.zip$",
+        "exclude": ["*/EVTX-ATTACK-SAMPLES/*", "*/chainsaw_*-apple-darwin", "*/chainsaw_*-unknown-linux-gnu"]
+      },
+      "exe": "chainsaw_x86_64-pc-windows-msvc.exe",
+      "actions": [
+        {
+          "id": "chainsaw-hunt",
+          "label": "Hunt with Sigma and Chainsaw rules",
+          "artifacts": ["evtx"],
+          "input": "folder",
+          "steps": [{"args": ["hunt", "{input}", "-s", "{exe_dir}/sigma", "--mapping", "{exe_dir}/mappings/sigma-event-logs-all.yml", "-r", "{exe_dir}/rules", "--csv", "-o", "{output}", "-q", "--skip-errors"]}]
+        },
+        {
+          "id": "chainsaw-gaps",
+          "label": "Find gaps in event logs (possible deletion)",
+          "artifacts": ["evtx"],
+          "input": "folder",
+          "steps": [{"args": ["analyse", "gaps", "{input}", "-o", "{output}/chainsaw_gaps.txt", "-q", "--skip-errors"]}]
+        },
+        {
+          "id": "chainsaw-srum",
+          "label": "Analyse SRUM (needs a SOFTWARE hive)",
+          "artifacts": ["srum"],
+          "input": "file",
+          "pair": {"artifact": "hive_software", "required": true, "args": ["--software", "{pair}"]},
+          "steps": [{"args": ["analyse", "srum", "{input}", "-o", "{output}/chainsaw_srum.json", "-q"]}]
+        }
+      ]
+    },
+    {
+      "id": "RegRipper",
+      "group": "Registry",
+      "about": "Harlan Carvey's RegRipper 4.0. Runs every plugin that fits the hive type and writes a readable report. Does not replay transaction logs.",
+      "homepage": "https://github.com/keydet89/RegRipper4.0",
+      "source": {"kind": "url", "url": "https://github.com/keydet89/RegRipper4.0/archive/refs/heads/main.zip"},
+      "exe": "rip.exe",
+      "actions": [
+        {
+          "id": "regripper",
+          "label": "RegRipper report",
+          "artifacts": ["hive_amcache", "hive_system", "hive_software", "hive_sam", "hive_security", "hive_ntuser", "hive_usrclass", "hive_other"],
+          "input": "file",
+          "steps": [{"args": ["-r", "{input}", "-a"], "stdout": "{name}.regripper.txt"}]
+        },
+        {
+          "id": "regripper-tln",
+          "label": "RegRipper timeline (TLN)",
+          "artifacts": ["hive_amcache", "hive_system", "hive_software", "hive_sam", "hive_security", "hive_ntuser", "hive_usrclass", "hive_other"],
+          "input": "file",
+          "steps": [{"args": ["-r", "{input}", "-aT"], "stdout": "{name}.regripper_tln.txt"}]
+        }
+      ]
+    },
+    {
+      "id": "DetectItEasy",
+      "group": "Executable triage",
+      "about": "Identifies the compiler, linker, packer and protector of executables.",
+      "homepage": "https://github.com/horsicq/Detect-It-Easy",
+      "source": {"kind": "github", "repo": "horsicq/DIE-engine", "asset": "^die_win64_portable_[0-9.]+_x64\\.zip$"},
+      "exe": "diec.exe",
+      "gui": "die.exe",
+      "actions": [
+        {
+          "id": "die",
+          "label": "Identify compiler and packer",
+          "artifacts": ["pe"],
+          "input": "folder",
+          "steps": [{"args": ["-r", "-d", "{input}"], "stdout": "die.txt"}]
+        }
+      ]
+    },
+    {
+      "id": "FLOSS",
+      "group": "Executable triage",
+      "about": "Mandiant's FLARE string extractor. Recovers static, stack, tight and decoded strings that plain string tools miss.",
+      "homepage": "https://github.com/mandiant/flare-floss",
+      "source": {"kind": "github", "repo": "mandiant/flare-floss", "asset": "^floss-v[0-9.]+-windows\\.zip$"},
+      "exe": "floss.exe",
+      "actions": [
+        {
+          "id": "floss",
+          "label": "Extract obfuscated strings (slow)",
+          "artifacts": ["pe"],
+          "input": "file",
+          "steps": [{"args": ["-q", "{input}"], "stdout": "{name}.floss.txt"}]
+        }
+      ]
+    },
+    {
+      "id": "SIDR",
+      "group": "Windows Search",
+      "about": "Search Index DB Reporter. Turns Windows.edb or Windows.db into file, internet history and activity reports.",
+      "homepage": "https://github.com/strozfriedberg/sidr",
+      "source": {"kind": "github", "repo": "strozfriedberg/sidr", "asset": "^sidr\\.exe$"},
+      "exe": "sidr.exe",
+      "actions": [
+        {
+          "id": "sidr",
+          "label": "Parse Windows Search index",
+          "artifacts": ["windows_search"],
+          "input": "folder",
+          "steps": [{"args": ["-f", "csv", "-o", "{output}", "{input}"]}]
+        }
+      ]
+    },
+    {
+      "id": "Volatility3",
+      "group": "Memory",
+      "about": "Memory forensics framework. Lists processes, command lines, network connections, services and injected code. Downloads Windows symbol files on first use.",
+      "homepage": "https://github.com/volatilityfoundation/volatility3",
+      "source": {"kind": "github", "repo": "volatilityfoundation/volatility3", "asset": "^volatility3-win-exes-[0-9.]+\\.zip$"},
+      "exe": "vol.exe",
+      "actions": [
+        {
+          "id": "volatility-triage",
+          "label": "Memory triage (processes, network, malfind)",
+          "artifacts": ["memory_image"],
+          "input": "file",
+          "steps": [
+            {"args": ["-q", "-r", "csv", "-f", "{input}", "windows.info"], "stdout": "windows.info.csv", "stdout_on_failure": "log"},
+            {"args": ["-q", "-r", "csv", "-f", "{input}", "windows.pslist"], "stdout": "windows.pslist.csv", "stdout_on_failure": "log"},
+            {"args": ["-q", "-r", "csv", "-f", "{input}", "windows.pstree"], "stdout": "windows.pstree.csv", "stdout_on_failure": "log"},
+            {"args": ["-q", "-r", "csv", "-f", "{input}", "windows.psscan"], "stdout": "windows.psscan.csv", "stdout_on_failure": "log"},
+            {"args": ["-q", "-r", "csv", "-f", "{input}", "windows.cmdline"], "stdout": "windows.cmdline.csv", "stdout_on_failure": "log"},
+            {"args": ["-q", "-r", "csv", "-f", "{input}", "windows.netscan"], "stdout": "windows.netscan.csv", "stdout_on_failure": "log"},
+            {"args": ["-q", "-r", "csv", "-f", "{input}", "windows.svcscan"], "stdout": "windows.svcscan.csv", "stdout_on_failure": "log"},
+            {"args": ["-q", "-r", "csv", "-f", "{input}", "windows.malfind"], "stdout": "windows.malfind.csv", "stdout_on_failure": "log"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ExifTool",
+      "group": "Metadata",
+      "about": "Phil Harvey's ExifTool. Reads metadata from documents, photos, audio and video.",
+      "homepage": "https://exiftool.org/",
+      "source": {
+        "kind": "versioned",
+        "version_url": "https://exiftool.org/ver.txt",
+        "url": "https://sourceforge.net/projects/exiftool/files/exiftool-{version}_64.zip/download",
+        "file": "exiftool-{version}_64.zip",
+        "sha256_url": "https://exiftool.org/checksums-{version}.txt",
+        "rename": {"exiftool(-k).exe": "exiftool.exe"}
+      },
+      "exe": "exiftool.exe",
+      "actions": [
+        {
+          "id": "exiftool",
+          "label": "Extract metadata",
+          "artifacts": ["document", "image_media"],
+          "input": "folder",
+          "steps": [{"args": ["-r", "-csv", "-G1", "-a", "{input}"], "stdout": "exiftool.csv"}]
+        }
+      ]
+    }
+  ]
+}

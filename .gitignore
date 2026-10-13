@@ -1,0 +1,10 @@
+# Created by the adapter at run time: downloaded tools, evidence, results, settings.
+/tools/
+/evidence/
+/output/
+/settings.json
+
+# Built by build.py.
+/EZToolzAdapter.exe
+
+__pycache__/

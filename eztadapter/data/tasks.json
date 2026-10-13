@@ -1,0 +1,206 @@
+{
+  "_comment": [
+    "The analysis menu: investigation tasks grouped into sections, each answering one question.",
+    "A task lists the actions (from tools.json) that answer it. 'default' marks the actions ticked when the",
+    "task is chosen; the others can be added in the task's details. 'artifacts' narrows an action to some of",
+    "its artifact types within this task, so choosing 'Accounts and logons' runs RECmd on SAM hives only.",
+    "When several chosen tasks share an action, it runs once over the union of their inputs.",
+    "'icon' names a glyph defined in gui/theme.py; 'reading' tells the analyst where to start in the results."
+  ],
+  "sections": [
+    {"id": "activity", "title": "What happened", "about": "Reconstruct what users and programs did on the system."},
+    {"id": "detection", "title": "Was it an attack", "about": "Look for attacker techniques, suspicious programs and tampering."},
+    {"id": "deep-dive", "title": "Dig deeper", "about": "Full parses and utilities for detailed review."}
+  ],
+  "tasks": [
+    {
+      "id": "program-execution",
+      "section": "activity",
+      "title": "Program execution",
+      "question": "Which programs ran, when, and how often?",
+      "about": "Combines four independent execution records: prefetch run counts and times, Amcache inventory with SHA-1 hashes, the ShimCache list in the SYSTEM hive, and the Windows 7 RecentFileCache.",
+      "reading": "Start with the PECmd timeline: one row per run, sorted by time. Look up unfamiliar programs in the Amcache results by their SHA-1.",
+      "icon": "play",
+      "steps": [
+        {"action": "pecmd", "default": true},
+        {"action": "amcacheparser", "default": true},
+        {"action": "appcompatcacheparser", "default": true},
+        {"action": "recentfilecacheparser", "default": true}
+      ]
+    },
+    {
+      "id": "file-folder-access",
+      "section": "activity",
+      "title": "Files and folders opened",
+      "question": "Which documents and folders did users open, and from which drives?",
+      "about": "Shortcut files and jump lists record documents users opened; ShellBags record the folders they browsed, even on removed USB drives; the Windows Search index lists files it has seen.",
+      "reading": "LECmd and JLECmd results show the target path, its timestamps and the volume serial number. ShellBags show folder paths with first and last interaction times.",
+      "icon": "folder",
+      "steps": [
+        {"action": "lecmd", "default": true},
+        {"action": "jlecmd", "default": true},
+        {"action": "sbecmd", "default": true},
+        {"action": "sidr", "default": true}
+      ]
+    },
+    {
+      "id": "accounts-logons",
+      "section": "activity",
+      "title": "Accounts and logons",
+      "question": "Who logged on, how, and from where?",
+      "about": "Summarises successful and failed logons from the Security event log, lists local accounts from the SAM hive, and reads User Access Logging on Windows Server.",
+      "reading": "The Hayabusa logon summary counts logons per user, logon type and source address. Logon type 10 is RDP; type 3 is network.",
+      "icon": "person",
+      "steps": [
+        {"action": "hayabusa-logons", "default": true},
+        {"action": "recmd-batch", "artifacts": ["hive_sam"], "default": true},
+        {"action": "sumecmd", "default": true}
+      ]
+    },
+    {
+      "id": "filesystem-timeline",
+      "section": "activity",
+      "title": "File system timeline",
+      "question": "What was created, changed, renamed or deleted on the volume?",
+      "about": "Parses the NTFS Master File Table into one row per file with all timestamps, and the USN change journal into every create, rename, write and delete it recorded.",
+      "reading": "Open the $MFT output in Timeline Explorer and filter by path or extension. The $J output lists changes in order; its paths are complete when the $MFT of the same volume was present.",
+      "icon": "drive",
+      "steps": [
+        {"action": "mftecmd-ntfs", "default": true},
+        {"action": "mftecmd-usn", "default": true}
+      ]
+    },
+    {
+      "id": "deleted-files",
+      "section": "activity",
+      "title": "Deleted files",
+      "question": "What was deleted, from where, and when?",
+      "about": "Recycle Bin records keep each deleted file's original path, size and deletion time. The USN journal also records deletions that bypassed the Recycle Bin.",
+      "reading": "RBCmd lists one row per deleted file. Search the USN journal output for the reason FileDelete to find the rest.",
+      "icon": "delete",
+      "steps": [
+        {"action": "rbcmd", "default": true},
+        {"action": "mftecmd-usn", "default": false}
+      ]
+    },
+    {
+      "id": "app-usage",
+      "section": "activity",
+      "title": "Application and network usage",
+      "question": "How long were applications used, and how much did each send over the network?",
+      "about": "SRUM keeps about 30 days of per-application CPU time and network traffic. The Windows Timeline records which applications and documents had focus, and for how long.",
+      "reading": "In the SRUM network usage table, sort by bytes sent to spot large uploads. The Timeline output shows activity per application with start and end times.",
+      "icon": "chart",
+      "steps": [
+        {"action": "srumecmd", "default": true},
+        {"action": "wxtcmd", "default": true},
+        {"action": "chainsaw-srum", "default": false}
+      ]
+    },
+    {
+      "id": "browser-apps",
+      "section": "activity",
+      "title": "Browser and app databases",
+      "question": "Which sites were visited, what was downloaded, and what did apps store?",
+      "about": "Runs known queries against SQLite databases of browsers, cloud sync clients, messaging and other applications.",
+      "reading": "Each recognised database produces its own CSV named after the application and the data it holds, such as history, downloads or cookies.",
+      "icon": "globe",
+      "steps": [
+        {"action": "sqlecmd", "default": true}
+      ]
+    },
+    {
+      "id": "threat-detection",
+      "section": "detection",
+      "title": "Threat detection",
+      "question": "Do the event logs show known attacker techniques?",
+      "about": "Hayabusa applies thousands of Sigma rules to the event logs and writes a timeline of detections with severity levels and MITRE ATT&CK tags. Chainsaw can hunt with a second rule set.",
+      "reading": "Open the Hayabusa HTML summary first for the overall picture, then the timeline CSV. Review critical and high detections before the rest.",
+      "icon": "shield",
+      "steps": [
+        {"action": "hayabusa-timeline", "default": true},
+        {"action": "chainsaw-hunt", "default": false}
+      ]
+    },
+    {
+      "id": "event-log-review",
+      "section": "detection",
+      "title": "Event log review",
+      "question": "What did the logs record, and were they cleared or tampered with?",
+      "about": "Normalises every event into one CSV with the useful fields extracted, counts events per ID, and looks for gaps in record numbers and time that suggest deleted records.",
+      "reading": "The EvtxECmd CSV is best explored in Timeline Explorer, grouped by Channel and Event Id. Any gap Chainsaw reports deserves a closer look.",
+      "icon": "list",
+      "steps": [
+        {"action": "evtxecmd", "default": true},
+        {"action": "hayabusa-eid-metrics", "default": true},
+        {"action": "chainsaw-gaps", "default": true}
+      ]
+    },
+    {
+      "id": "executable-triage",
+      "section": "detection",
+      "title": "Executable triage",
+      "question": "Are these programs signed, packed, or hiding something?",
+      "about": "Checks digital signatures and hashes, identifies the compiler and any packer or protector, and can recover obfuscated strings with FLOSS.",
+      "reading": "Unsigned files and files identified as packed are the first to examine. Hashes from Sigcheck can be looked up in threat intelligence services.",
+      "icon": "bug",
+      "steps": [
+        {"action": "sigcheck", "default": true},
+        {"action": "die", "default": true},
+        {"action": "floss", "default": false}
+      ]
+    },
+    {
+      "id": "memory-analysis",
+      "section": "detection",
+      "title": "Memory analysis",
+      "question": "What was running at capture time: processes, connections, injected code?",
+      "about": "Volatility 3 lists processes (including hidden ones), their command lines, network connections and services, and flags memory regions that look like injected code.",
+      "reading": "Compare the process list with the process scan: processes only in the scan were hidden or have exited. Malfind hits show executable memory that is not backed by a file.",
+      "icon": "chip",
+      "steps": [
+        {"action": "volatility-triage", "default": true}
+      ]
+    },
+    {
+      "id": "registry-deep-dive",
+      "section": "deep-dive",
+      "title": "Registry deep dive",
+      "question": "What do the hives record about the system, its users and devices?",
+      "about": "Extracts the forensically relevant keys of every hive with RECmd. RegRipper writes a readable report per hive, and rla produces clean hive copies with transaction logs applied.",
+      "reading": "The RECmd batch CSV has one row per finding with a category column; filter by category such as Devices, User Activity or Persistence.",
+      "icon": "registry",
+      "steps": [
+        {"action": "recmd-batch", "default": true},
+        {"action": "regripper", "default": false},
+        {"action": "regripper-tln", "default": false},
+        {"action": "rla", "default": false}
+      ]
+    },
+    {
+      "id": "metadata",
+      "section": "deep-dive",
+      "title": "Document and media metadata",
+      "question": "Who authored a document, and when and where was a photo taken?",
+      "about": "Reads the metadata of documents, photos, audio and video: authors, software, creation times, camera models and GPS positions.",
+      "reading": "Each row is one file. Useful columns include Author, Creator, CreateDate, Make, Model and the GPS fields.",
+      "icon": "image",
+      "steps": [
+        {"action": "exiftool", "default": true}
+      ]
+    },
+    {
+      "id": "strings",
+      "section": "deep-dive",
+      "title": "Strings",
+      "question": "Which readable text, addresses or paths does a file contain?",
+      "about": "Extracts ASCII and Unicode strings from any file. Best used on a few selected files, as it runs once per file.",
+      "reading": "Each file gets its own text file of strings. Search them for URLs, IP addresses, paths or user names.",
+      "icon": "text",
+      "steps": [
+        {"action": "bstrings", "default": true},
+        {"action": "strings", "default": false}
+      ]
+    }
+  ]
+}
